@@ -2,7 +2,7 @@ import pandas as pd
 from sklearn.linear_model import LogisticRegression
 from sklearn.naive_bayes import GaussianNB
 from sklearn.neighbors import KNeighborsClassifier
-from sklearn.svm import SVC
+from sklearn.svm import LinearSVC
 from sklearn.ensemble import HistGradientBoostingClassifier, RandomForestClassifier
 from sklearn.model_selection import GridSearchCV, PredefinedSplit
 
@@ -30,7 +30,7 @@ def run_ml_pipeline():
 
     models_config = {
         'SVM_Linear': {
-            'model': SVC(kernel='linear', random_state=42),
+            'model': LinearSVC(random_state=42, max_iter=5000),
             'params': {'C': [0.1, 1, 10, 100]}
         },
         'Random_Forest': {
