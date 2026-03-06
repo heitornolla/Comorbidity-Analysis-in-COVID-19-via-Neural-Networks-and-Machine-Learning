@@ -1,13 +1,14 @@
 import pandas as pd
+import numpy as np
 
 from typing import Tuple
+
 from sklearn.model_selection import train_test_split
-from sklearn.utils import resample
 from sklearn.preprocessing import StandardScaler
+from sklearn.utils import resample
 
 
-
-def load_data(path: str = 'data/covid.csv') -> Tuple[pd.DataFrame, pd.DataFrame]:
+def load_data(path: str = "data/covid.csv") -> Tuple[pd.DataFrame, pd.DataFrame]:
     full_data = pd.read_csv(path)
     df = full_data.copy(deep=True)
 
@@ -16,81 +17,152 @@ def load_data(path: str = 'data/covid.csv') -> Tuple[pd.DataFrame, pd.DataFrame]
 
 def clean_dates(df: pd.DataFrame) -> pd.DataFrame:
     date_cols = [
-        'entry_date', 
-        'date_symptoms', 
-        'date_died'
+        "entry_date",
+        "date_symptoms",
+        "date_died",
     ]
 
     for col in date_cols:
         df[col] = pd.to_datetime(
-            df[col], 
-            format='%d-%m-%Y', 
-            errors='coerce'
+            df[col],
+            format="%d-%m-%Y",
+            errors="coerce",
         )
-    
+
     return df
+
 
 def transform_date_features(df: pd.DataFrame) -> pd.DataFrame:
-    df['died'] = df['date_died'].notna().astype(int) 
-    
-    df['date_entry_symptom'] = (df['entry_date'] - df['date_symptoms']).dt.days
-    df['date_symptom_death'] = (df['date_died'] - df['date_symptoms']).dt.days
-
-    df = df[~(df['date_symptom_death'].fillna(0) < 0)] 
-    
-    df = df.drop(columns='date_symptom_death')
+    df["died"] = df["date_died"].notna().astype(int)
+    df["date_entry_symptom"] = (df["entry_date"] - df["date_symptoms"]).dt.days
+    df["date_symptom_death"] = (df["date_died"] - df["date_symptoms"]).dt.days
+    df = df[~(df["date_symptom_death"].fillna(0) < 0)]
+    df = df.drop(columns="date_symptom_death")
 
     return df
 
-def get_features(df: pd.DataFrame) -> Tuple[pd.DataFrame, pd.DataFrame]:
+
+def get_features(df: pd.DataFrame):
     features = [
-        'sex', 'age', 'patient_type', 
-        'icu', 'intubed', 'pneumonia', 
-        'pregnancy', 'diabetes', 'copd', 
-        'asthma', 'inmsupr', 'hypertension', 
-        'other_disease', 'cardiovascular', 'obesity', 
-        'renal_chronic', 'tobacco', 'contact_other_covid',
-        'covid_res', 'date_entry_symptom'
+        "sex",
+        "age",
+        "pneumonia",
+        "pregnancy",
+        "diabetes",
+        "copd",
+        "asthma",
+        "inmsupr",
+        "hypertension",
+        "other_disease",
+        "cardiovascular",
+        "obesity",
+        "renal_chronic",
+        "tobacco",
+        "contact_other_covid",
+        "covid_res",
+        "date_entry_symptom",
     ]
 
-    target = 'died'
-
+    target = "died"
     X = df[features]
     y = df[target]
 
     return X, y
 
-def balance_dataset(X: pd.DataFrame, y: pd.DataFrame, target: str = 'died') -> pd.DataFrame:
-    df_balanced = pd.concat([X, y], axis=1)
 
-    df_survived = df_balanced[df_balanced[target] == 0]
-    df_died = df_balanced[df_balanced[target] == 1]
+def remove_leakage_features(X):
+    leakage_features = [
+        "icu",
+        "intubed",
+        "patient_type",
+    ]
+    X = X.drop(columns=leakage_features, errors="ignore")
 
-    df_survived_downsampled = resample(
-        df_survived,
-        replace=False,
-        n_samples=len(df_died),
-        random_state=42
+    return X
+
+
+def remove_correlated_features(X, threshold=0.9):
+    corr_matrix = X.corr().abs()
+    upper = corr_matrix.where(np.triu(np.ones(corr_matrix.shape), k=1).astype(bool))
+    to_drop = [column for column in upper.columns if any(upper[column] > threshold)]
+
+    print("\nRemoving correlated features:")
+    print(to_drop)
+
+    X = X.drop(columns=to_drop)
+
+    return X, to_drop
+
+
+def split_dataset(X, y):
+    X_train, X_test, y_train, y_test = train_test_split(
+        X,
+        y,
+        test_size=0.2,
+        random_state=42,
+        stratify=y,
     )
 
-    assert df_survived_downsampled.shape[0] == df_died.shape[0]
+    X_train, X_val, y_train, y_val = train_test_split(
+        X_train,
+        y_train,
+        test_size=0.25,
+        random_state=42,
+        stratify=y_train,
+    )
 
-    return pd.concat([df_survived_downsampled, df_died])
+    return X_train, X_val, X_test, y_train, y_val, y_test
 
-def get_train_val_test_dfs(df: pd.DataFrame) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
-    train_df, test_df = train_test_split(df, test_size=0.2, random_state=42)
-    train_df, val_df = train_test_split(train_df, test_size=0.25, random_state=42) # 0.25 * 0.8 = 0.2
 
-    return train_df, val_df, test_df
+def balance_training_data(X_train, y_train):
+    train_df = X_train.copy()
+    train_df["died"] = y_train
 
-def scale_features(train_df, val_df, test_df):
+    majority = train_df[train_df.died == 0]
+    minority = train_df[train_df.died == 1]
+    minority_upsampled = resample(
+        minority,
+        replace=True,
+        n_samples=len(majority),
+        random_state=42,
+    )
+
+    balanced = pd.concat([majority, minority_upsampled])
+    balanced = balanced.sample(frac=1, random_state=42).reset_index(drop=True)
+
+    X_bal = balanced.drop(columns="died")
+    y_bal = balanced["died"]
+
+    return X_bal, y_bal
+
+
+def scale_features(X_train, X_val, X_test):
     scaler = StandardScaler()
-    features = [c for c in train_df.columns if c != 'died']
-    
-    train_df[features] = scaler.fit_transform(train_df[features])
-    val_df[features] = scaler.transform(val_df[features])
-    test_df[features] = scaler.transform(test_df[features])
-    
+
+    X_train = pd.DataFrame(
+        scaler.fit_transform(X_train), columns=X_train.columns
+    ).reset_index(drop=True)
+
+    X_val = pd.DataFrame(scaler.transform(X_val), columns=X_val.columns).reset_index(
+        drop=True
+    )
+
+    X_test = pd.DataFrame(scaler.transform(X_test), columns=X_test.columns).reset_index(
+        drop=True
+    )
+
+    return X_train, X_val, X_test
+
+
+def build_dataframes(X_train, X_val, X_test, y_train, y_val, y_test):
+    y_train = y_train.reset_index(drop=True)
+    y_val = y_val.reset_index(drop=True)
+    y_test = y_test.reset_index(drop=True)
+
+    train_df = pd.concat([X_train, y_train], axis=1)
+    val_df = pd.concat([X_val, y_val], axis=1)
+    test_df = pd.concat([X_test, y_test], axis=1)
+
     return train_df, val_df, test_df
 
 
@@ -99,13 +171,31 @@ def main():
     df = clean_dates(df)
     df = transform_date_features(df)
     X, y = get_features(df)
-    df = balance_dataset(X, y)
-    train_df, val_df, test_df = get_train_val_test_dfs(df)
-    train_df, val_df, test_df = scale_features(train_df, val_df, test_df)
+    X = remove_leakage_features(X)
+    X, dropped = remove_correlated_features(X)
+    X_train, X_val, X_test, y_train, y_val, y_test = split_dataset(X, y)
+    X_train, y_train = balance_training_data(X_train, y_train)
+    X_train, X_val, X_test = scale_features(
+        X_train,
+        X_val,
+        X_test,
+    )
+    train_df, val_df, test_df = build_dataframes(
+        X_train,
+        X_val,
+        X_test,
+        y_train,
+        y_val,
+        y_test,
+    )
 
     return train_df, val_df, test_df
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     train_df, val_df, test_df = main()
-    assert val_df.shape == test_df.shape
+
+    print("\nFinal dataset shapes:")
+    print("Train:", train_df.shape)
+    print("Val:", val_df.shape)
+    print("Test:", test_df.shape)
