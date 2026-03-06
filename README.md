@@ -3,6 +3,8 @@
 We reproduce the paper 'Análise de pré-condições existentes em pacientes com COVID-19:
 aplicação de redes neurais na segmentação de pacientes', published at the 15th Brazilian Symposium on Intelligent Automation – SBAI 2021. Additionally, we identify and implement a few improvements, enhancing our performance.
 
+A more detailed explanation of improvements is underway. For the moment, results may be seen empirically by running the training pipelines with the author's data gathering pipelines (`prepare_dataframes_deprecated.py`) vs ours (`prepare_dataframes.py`).
+
 ## Project Overview
 
 The objective is to improve predictive performance, model validation rigor, and comparative benchmarking across multiple machine learning approaches.
