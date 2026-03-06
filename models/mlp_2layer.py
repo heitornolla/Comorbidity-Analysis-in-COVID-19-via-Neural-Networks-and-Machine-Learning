@@ -1,5 +1,6 @@
 import torch.nn as nn
 
+
 class TwoLayerMLP(nn.Module):
     def __init__(self):
         super().__init__()
@@ -14,8 +15,8 @@ class TwoLayerMLP(nn.Module):
         x = self.tanh(self.hidden1(x))
         x = self.tanh(self.hidden2(x))
         x = self.sigmoid(self.output(x))
-        
+
         return x
-    
+
     def __repr__(self):
-        return 'TwoLayerMLP'
+        return "TwoLayerMLP"

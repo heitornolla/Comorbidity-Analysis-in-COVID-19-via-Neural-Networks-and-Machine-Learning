@@ -1,5 +1,6 @@
 import torch.nn as nn
 
+
 class OneLayerMLP(nn.Module):
     def __init__(self):
         super().__init__()
@@ -16,5 +17,4 @@ class OneLayerMLP(nn.Module):
         return x
 
     def __repr__(self):
-        return 'OneLayerMLP'
-    
+        return "OneLayerMLP"
