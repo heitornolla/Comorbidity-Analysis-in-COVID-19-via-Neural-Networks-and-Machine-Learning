@@ -19,7 +19,6 @@ from utils.eval_utils import evaluate_model
 from utils.prepare_dataframes import main as get_data
 
 
-
 def compute_auc(model, X_test, y_test, model_name):
     os.makedirs("plots/auc_outputs", exist_ok=True)
 
